@@ -27,6 +27,13 @@ from lightning.fabric.plugins.environments.slurm import SLURMEnvironment
 from lightning.fabric.utilities.cloud_io import _is_dir, get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks.orchestration import (
+    OrchestrationMismatchError,
+    _capability_of,
+    _orchestration_env_flag,
+    orchestration_fingerprint,
+    orchestration_order_diff,
+)
 from lightning.pytorch.plugins.precision import MixedPrecision
 from lightning.pytorch.trainer import call
 from lightning.pytorch.trainer.states import TrainerFn
@@ -297,6 +304,9 @@ class _CheckpointConnector:
         if not self._loaded_checkpoint:
             return
 
+        # verify the resolved callback order against the fingerprint stored at save time
+        self._verify_callback_orchestration()
+
         # restore precision plugin (scaler etc.)
         self.restore_precision_plugin_state()
 
@@ -307,6 +317,52 @@ class _CheckpointConnector:
         if self.trainer.state.fn == TrainerFn.FITTING:
             # restore optimizers and schedulers state
             self.restore_optimizers_and_schedulers()
+
+    def _verify_callback_orchestration(self) -> None:
+        """Compare the callback execution order of this run against the fingerprint stored in the checkpoint.
+
+        A mismatch is always reported explicitly (never silently ignored). Checkpoints saved before orchestration
+        tracking existed take a compatibility path and only produce an informational message.
+
+        """
+        saved = self._loaded_checkpoint.get("callback_orchestration")
+        if saved is None:
+            if "callbacks" in self._loaded_checkpoint:
+                rank_zero_info(
+                    "This checkpoint does not contain a callback orchestration fingerprint (it was saved before"
+                    " orchestration tracking was introduced). Skipping the callback order verification."
+                )
+            return
+
+        current_order = [_capability_of(cb) for cb in self.trainer.callbacks]
+        current_fingerprint = orchestration_fingerprint(current_order)
+        if current_fingerprint == saved.get("fingerprint"):
+            return
+
+        expected_order = saved.get("order", [])
+        # machine-readable diff, archived on the trainer for programmatic inspection
+        self.trainer._callback_orchestration_mismatch = {
+            "expected_order": list(expected_order),
+            "actual_order": current_order,
+            "expected_fingerprint": saved.get("fingerprint"),
+            "actual_fingerprint": current_fingerprint,
+        }
+        diff = orchestration_order_diff(expected_order, current_order)
+        if _orchestration_env_flag("PL_CALLBACK_ORCHESTRATION_FORCE"):
+            rank_zero_info(
+                "The callback execution order differs from the orchestration fingerprint stored in the checkpoint,"
+                " but `PL_CALLBACK_ORCHESTRATION_FORCE` is set. Continuing with the new order."
+            )
+            return
+        message = (
+            "The callback execution order resolved for this run does not match the orchestration fingerprint stored"
+            f" in the checkpoint.\n{diff}\nThe machine-readable diff is available at"
+            " `trainer._callback_orchestration_mismatch`. Set `PL_CALLBACK_ORCHESTRATION_FORCE=1` to accept the new"
+            " order and continue, or `PL_CALLBACK_ORCHESTRATION_STRICT=1` to make this check a hard failure."
+        )
+        if _orchestration_env_flag("PL_CALLBACK_ORCHESTRATION_STRICT"):
+            raise OrchestrationMismatchError(message)
+        rank_zero_warn(message)
 
     def restore_precision_plugin_state(self) -> None:
         """Restore the precision plugin state from the pre-loaded checkpoint."""
@@ -457,6 +513,18 @@ class _CheckpointConnector:
         if not weights_only:
             # dump callbacks
             checkpoint["callbacks"] = call._call_callbacks_state_dict(trainer)
+
+            # dump the callback orchestration fingerprint so a resumed run can verify that the callback execution
+            # order matches the one this checkpoint was saved with
+            orchestration_order = [_capability_of(cb) for cb in trainer.callbacks]
+            orchestration: dict[str, Any] = {
+                "order": orchestration_order,
+                "fingerprint": orchestration_fingerprint(orchestration_order),
+            }
+            report = getattr(trainer, "_callback_orchestration_report", None)
+            if report is not None:
+                orchestration["report"] = report.as_dict()
+            checkpoint["callback_orchestration"] = orchestration
 
             optimizer_states = []
             for i, optimizer in enumerate(trainer.optimizers):

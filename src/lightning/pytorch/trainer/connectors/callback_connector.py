@@ -33,6 +33,11 @@ from lightning.pytorch.callbacks import (
 )
 from lightning.pytorch.callbacks.batch_size_finder import BatchSizeFinder
 from lightning.pytorch.callbacks.lr_finder import LearningRateFinder
+from lightning.pytorch.callbacks.orchestration import (
+    CallbackSource,
+    orchestration_requested,
+    resolve_callback_orchestration,
+)
 from lightning.pytorch.callbacks.rich_model_summary import RichModelSummary
 from lightning.pytorch.callbacks.timer import Timer
 from lightning.pytorch.loggers.litlogger import LitLogger
@@ -49,6 +54,8 @@ class _CallbackConnector:
     def __init__(self, trainer: "pl.Trainer"):
         self.trainer = trainer
         self._pending_litmodels_tip = False
+        # provenance of every registered callback, keyed by id(); used by the orchestration resolver
+        self._callback_sources: dict[int, CallbackSource] = {}
 
     def on_trainer_init(
         self,
@@ -61,11 +68,13 @@ class _CallbackConnector:
     ) -> None:
         # init folder paths for checkpoint + weights save callbacks
         self.trainer._default_root_dir = default_root_dir or os.getcwd()
+        self.trainer._callback_orchestration_report = None
 
         # init callbacks
         if isinstance(callbacks, Callback):
             callbacks = [callbacks]
         self.trainer.callbacks = callbacks or []
+        self._callback_sources = {id(cb): CallbackSource.USER for cb in self.trainer.callbacks}
 
         # configure checkpoint callback
         # pass through the required args to figure out defaults
@@ -81,12 +90,33 @@ class _CallbackConnector:
         # configure the ModelSummary callback
         self._configure_model_summary_callback(enable_model_summary)
 
-        self.trainer.callbacks.extend(_load_external_callbacks("lightning.pytorch.callbacks_factory"))
+        # everything appended above was injected by the Trainer itself
+        for cb in self.trainer.callbacks:
+            self._callback_sources.setdefault(id(cb), CallbackSource.TRAINER)
+
+        external_callbacks = _load_external_callbacks("lightning.pytorch.callbacks_factory")
+        self._callback_sources.update({id(cb): CallbackSource.PLUGIN for cb in external_callbacks})
+        self.trainer.callbacks.extend(external_callbacks)
         _validate_callbacks_list(self.trainer.callbacks)
 
         # push all model checkpoint callbacks to the end
         # it is important that these are the last callbacks to run
-        self.trainer.callbacks = self._reorder_callbacks(self.trainer.callbacks)
+        self.trainer.callbacks = self._resolve_or_reorder(self.trainer.callbacks)
+
+    def _resolve_or_reorder(self, callbacks: list[Callback]) -> list[Callback]:
+        """Resolve declared orchestration constraints, or fall back to the legacy reordering.
+
+        The legacy path is taken whenever no callback declares constraints: the resulting order and the observable
+        behavior (no extra logging, no extra state) are exactly the ones Lightning always had.
+
+        """
+        if not orchestration_requested(callbacks):
+            return self._reorder_callbacks(callbacks)
+        entries = [(cb, self._callback_sources.get(id(cb), CallbackSource.USER)) for cb in callbacks]
+        result = resolve_callback_orchestration(entries)
+        self.trainer._callback_orchestration_report = result.report
+        rank_zero_info(result.report.to_human())
+        return result.callbacks
 
     def _configure_checkpoint_callbacks(self, enable_checkpointing: bool) -> None:
         if self.trainer.checkpoint_callbacks:
@@ -231,8 +261,9 @@ class _CallbackConnector:
             )
         # remove all callbacks with a type that occurs in model callbacks
         all_callbacks = [c for c in trainer.callbacks if type(c) not in override_types]
+        self._callback_sources.update({id(c): CallbackSource.MODEL for c in model_callbacks})
         all_callbacks.extend(model_callbacks)
-        all_callbacks = _CallbackConnector._reorder_callbacks(all_callbacks)
+        all_callbacks = self._resolve_or_reorder(all_callbacks)
         # TODO: connectors refactor: move callbacks list to connector and do not write Trainer state
         trainer.callbacks = all_callbacks
 

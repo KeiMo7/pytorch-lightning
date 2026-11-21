@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Added declarative callback orchestration: callbacks can now declare `Before`/`After`/`MutuallyExclusive`/`ExclusiveResource` constraints (hard or soft) via `with_constraints(...)` or a class-level `orchestration_constraints` attribute. Declared constraints are resolved into a deterministic execution order that is independent of insertion order, callback source (user/model/plugin/trainer) and process count. Cyclic, dangling or contradictory hard constraints fail before training starts with an error naming the participants and their sources. The resolved order is archived in an `OrchestrationReport` (human- and machine-readable) and a fingerprint of it is stored in checkpoints; resuming with a mismatching callback order warns explicitly (strict mode: `PL_CALLBACK_ORCHESTRATION_STRICT=1`, force-continue: `PL_CALLBACK_ORCHESTRATION_FORCE=1`), while checkpoints saved before this change take a compatibility path. When no constraints are declared, the callback order and behavior are exactly as before.
+
 - Added `suggest_integrations` flag to `Trainer` to control whether optional integration suggestions (e.g., litmodels, litlogger) are shown in logs ([#21632](https://github.com/Lightning-AI/pytorch-lightning/pull/21632))
 
 - Fixed ``ModelParallelStrategy`` single-file checkpointing when ``torch.compile`` wraps the model so optimizer states no longer raise ``KeyError`` during save ([#21357](https://github.com/Lightning-AI/pytorch-lightning/issues/21357))

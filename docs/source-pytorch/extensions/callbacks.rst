@@ -110,6 +110,48 @@ The following are best practices when using/designing callbacks.
 
 -----------
 
+.. _callback_orchestration:
+
+******************
+Callback ordering
+******************
+
+By default, callbacks run in the order they are passed to the Trainer, with the historical guarantee that tuner
+callbacks (``BatchSizeFinder``, ``LearningRateFinder``) run first and checkpoint callbacks run last. When the
+relative order of two callbacks matters, you can declare it explicitly instead of relying on list positions:
+
+.. testcode::
+
+    from lightning.pytorch.callbacks import Before, with_constraints
+
+    ema = with_constraints(MyEMACallback(), Before("MyEMACallback", "ModelCheckpoint"))
+    trainer = Trainer(callbacks=[ema, ...])
+
+Constraints can also be declared on the callback class itself via an ``orchestration_constraints`` attribute, and
+four kinds are available: ``Before``, ``After``, ``MutuallyExclusive`` and ``ExclusiveResource``. Every constraint
+is either *hard* (the default; resolution fails before training starts if it cannot be satisfied) or *soft*
+(``hard=False``; best-effort, reported when relaxed). The target ``"*"`` means "everything else", e.g.
+``After("MyCallback", "*")`` requires a callback to run last.
+
+The resolved order is deterministic: it does not depend on the insertion order, on whether a callback was passed to
+the Trainer, returned from ``LightningModule.configure_callbacks`` or registered by a plugin, or on the number of
+processes. Pairs not ordered by any constraint are placed by a canonical tie-break (capability id, ascending).
+Cyclic, contradictory or dangling hard constraints raise an error before training starts, naming the participants
+and where each of them came from.
+
+Every resolution produces an audit report (``trainer._callback_orchestration_report``) in both human- and
+machine-readable form, listing the final order, which constraints were satisfied or relaxed, and which rules were
+inferred. A fingerprint of the final order is stored in every checkpoint. When resuming, the resolved order is
+compared against the stored fingerprint and a mismatch is reported explicitly with a diff; set
+``PL_CALLBACK_ORCHESTRATION_STRICT=1`` to make a mismatch a hard error, or ``PL_CALLBACK_ORCHESTRATION_FORCE=1``
+to accept the new order silently. Checkpoints saved before this mechanism existed resume as before, with an
+informational message.
+
+If no callback declares any constraint, the ordering behavior is exactly the historical one and the orchestration
+machinery stays completely silent.
+
+-----------
+
 .. _callback_hooks:
 
 ************
