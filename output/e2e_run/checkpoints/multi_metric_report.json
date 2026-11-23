@@ -1,0 +1,257 @@
+{
+  "checkpoints": [
+    {
+      "epoch": 0,
+      "evicted": true,
+      "filename": "mmckpt-epoch0-step2-seq0.ckpt",
+      "reason": "per-route mode: old_customer, new_customer, long_tail improved simultaneously; merged into one checkpoint, winner selected by route order",
+      "scores": {
+        "long_tail": 0.20000000298023224,
+        "new_customer": 0.4000000059604645,
+        "old_customer": 0.5
+      },
+      "seq": 0,
+      "step": 2,
+      "winner_routes": [
+        "old_customer",
+        "new_customer",
+        "long_tail"
+      ]
+    },
+    {
+      "epoch": 1,
+      "evicted": false,
+      "filename": "mmckpt-epoch1-step4-seq1.ckpt",
+      "reason": "per-route mode: old_customer, new_customer, long_tail improved simultaneously; merged into one checkpoint, winner selected by route order",
+      "scores": {
+        "long_tail": 0.20999999344348907,
+        "new_customer": 0.41999998688697815,
+        "old_customer": 0.6000000238418579
+      },
+      "seq": 1,
+      "step": 4,
+      "winner_routes": [
+        "old_customer",
+        "new_customer",
+        "long_tail"
+      ]
+    },
+    {
+      "epoch": 2,
+      "evicted": true,
+      "filename": "mmckpt-epoch2-step6-seq2.ckpt",
+      "reason": "per-route mode: new_customer, long_tail improved simultaneously; merged into one checkpoint, winner selected by route order",
+      "scores": {
+        "long_tail": 0.2199999988079071,
+        "new_customer": 0.44999998807907104,
+        "old_customer": 0.550000011920929
+      },
+      "seq": 2,
+      "step": 6,
+      "winner_routes": [
+        "new_customer",
+        "long_tail"
+      ]
+    },
+    {
+      "epoch": 3,
+      "evicted": false,
+      "filename": "mmckpt-epoch3-step8-seq3.ckpt",
+      "reason": "per-route mode: route 'long_tail' improved over its historical best",
+      "scores": {
+        "long_tail": 0.23000000417232513,
+        "old_customer": 0.5400000214576721
+      },
+      "seq": 3,
+      "step": 8,
+      "winner_routes": [
+        "long_tail"
+      ]
+    },
+    {
+      "epoch": 4,
+      "evicted": false,
+      "filename": "mmckpt-epoch4-step10-seq4.ckpt",
+      "reason": "per-route mode: route 'long_tail' improved over its historical best",
+      "scores": {
+        "long_tail": 0.23999999463558197,
+        "new_customer": 0.4399999976158142,
+        "old_customer": 0.5299999713897705
+      },
+      "seq": 4,
+      "step": 10,
+      "winner_routes": [
+        "long_tail"
+      ]
+    }
+  ],
+  "dirpath": "/home/wll/uid76/output/e2e_run/checkpoints",
+  "joint_mode": false,
+  "routes": {
+    "long_tail": {
+      "available": true,
+      "best_checkpoint_seq": 4,
+      "best_epoch": 4,
+      "best_model_path": "/home/wll/uid76/output/e2e_run/checkpoints/mmckpt-epoch4-step10-seq4.ckpt",
+      "best_score": 0.23999999463558197,
+      "history": [
+        {
+          "best_before": null,
+          "epoch": 0,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.20000000298023224,
+          "step": 2
+        },
+        {
+          "best_before": 0.20000000298023224,
+          "epoch": 1,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.20999999344348907,
+          "step": 4
+        },
+        {
+          "best_before": 0.20999999344348907,
+          "epoch": 2,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.2199999988079071,
+          "step": 6
+        },
+        {
+          "best_before": 0.2199999988079071,
+          "epoch": 3,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.23000000417232513,
+          "step": 8
+        },
+        {
+          "best_before": 0.23000000417232513,
+          "epoch": 4,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.23999999463558197,
+          "step": 10
+        }
+      ],
+      "mode": "max",
+      "monitor": "val/tail_auroc",
+      "participate_decision": true,
+      "participate_save": true,
+      "patience": 3,
+      "patience_exceeded": false,
+      "unavailable_reason": null,
+      "wait_count": 0
+    },
+    "new_customer": {
+      "available": true,
+      "best_checkpoint_seq": 1,
+      "best_epoch": 2,
+      "best_model_path": "/home/wll/uid76/output/e2e_run/checkpoints/mmckpt-epoch1-step4-seq1.ckpt",
+      "best_score": 0.44999998807907104,
+      "history": [
+        {
+          "best_before": null,
+          "epoch": 0,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.4000000059604645,
+          "step": 2
+        },
+        {
+          "best_before": 0.4000000059604645,
+          "epoch": 1,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.41999998688697815,
+          "step": 4
+        },
+        {
+          "best_before": 0.41999998688697815,
+          "epoch": 2,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.44999998807907104,
+          "step": 6
+        },
+        {
+          "best_before": 0.44999998807907104,
+          "epoch": 4,
+          "improved": false,
+          "participates_decision": true,
+          "score": 0.4399999976158142,
+          "step": 10
+        }
+      ],
+      "mode": "max",
+      "monitor": "val/new_auroc",
+      "participate_decision": true,
+      "participate_save": true,
+      "patience": 2,
+      "patience_exceeded": false,
+      "unavailable_reason": null,
+      "wait_count": 1
+    },
+    "old_customer": {
+      "available": true,
+      "best_checkpoint_seq": 1,
+      "best_epoch": 1,
+      "best_model_path": "/home/wll/uid76/output/e2e_run/checkpoints/mmckpt-epoch1-step4-seq1.ckpt",
+      "best_score": 0.6000000238418579,
+      "history": [
+        {
+          "best_before": null,
+          "epoch": 0,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.5,
+          "step": 2
+        },
+        {
+          "best_before": 0.5,
+          "epoch": 1,
+          "improved": true,
+          "participates_decision": true,
+          "score": 0.6000000238418579,
+          "step": 4
+        },
+        {
+          "best_before": 0.6000000238418579,
+          "epoch": 2,
+          "improved": false,
+          "participates_decision": true,
+          "score": 0.550000011920929,
+          "step": 6
+        },
+        {
+          "best_before": 0.6000000238418579,
+          "epoch": 3,
+          "improved": false,
+          "participates_decision": true,
+          "score": 0.5400000214576721,
+          "step": 8
+        },
+        {
+          "best_before": 0.6000000238418579,
+          "epoch": 4,
+          "improved": false,
+          "participates_decision": true,
+          "score": 0.5299999713897705,
+          "step": 10
+        }
+      ],
+      "mode": "max",
+      "monitor": "val/old_auroc",
+      "participate_decision": true,
+      "participate_save": true,
+      "patience": 2,
+      "patience_exceeded": true,
+      "unavailable_reason": null,
+      "wait_count": 3
+    }
+  },
+  "save_top_k": 3,
+  "schema_version": 1
+}
